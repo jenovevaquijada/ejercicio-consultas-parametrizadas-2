@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión Avanzada de Clientes</title>
+    <style>
+        :root { --primary: #6c5ce7; --bg: #f0f2f5; --text: #2d3436; --accent: #00cec9; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); padding: 20px; }
+        .container { max-width: 1100px; margin: auto; display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
+        h1 { grid-column: 1 / -1; text-align: center; color: var(--primary); margin-bottom: 30px; }
+        h2 { font-size: 1.1rem; border-bottom: 2px solid var(--bg); padding-bottom: 8px; margin-bottom: 15px; }
+        .flex-group { display: flex; gap: 10px; }
+        input { width: 100%; padding: 10px; margin: 8px 0; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; margin-top: 5px; }
+        .btn-search { background: var(--accent); color: white; }
+        .btn-add { background: #55efc4; }
+        .btn-edit { background: #fab1a0; }
+        .btn-del { background: #ff7675; color: white; }
+        .list-area { grid-column: 1 / -1; }
+        table { width: 100%; border-collapse: collapse; background: white; margin-top: 15px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: var(--primary); color: white; }
+        .msg-info { padding: 20px; text-align: center; background: #dfe6e9; border-radius: 8px; display: none; }
+    </style>
+</head>
+<body>
+
+    <h1>Panel de Clientes Avanzado 🐘</h1>
+
+    <div class="container">
+        <div class="card">
+            <h2>🔍 Consultas y Filtros</h2>
+            <input type="text" id="q-rut" placeholder="Buscar por RUT exacto">
+            <input type="text" id="q-nombre" placeholder="Buscar por Nombre o Prefijo">
+            <div class="flex-group">
+                <input type="number" id="q-edad" placeholder="Edad exacta">
+                <input type="number" id="q-min" placeholder="Edad Mín">
+                <input type="number" id="q-max" placeholder="Edad Máx">
+            </div>
+            <button class="btn-search" onclick="buscarClientes()">Aplicar Filtros</button>
+            <button style="background:#b2bec3" onclick="obtenerTodos()">Ver Todos</button>
+        </div>
+
+        <div class="card">
+            <h2>➕ Nuevo Registro</h2>
+            <input type="text" id="add-rut" placeholder="RUT">
+            <input type="text" id="add-nombre" placeholder="Nombre completo">
+            <input type="number" id="add-edad" placeholder="Edad">
+            <button class="btn-add" onclick="crearCliente()">Guardar Cliente</button>
+        </div>
+
+        <div class="card">
+            <h2>⚙️ Acciones por RUT</h2>
+            <input type="text" id="target-rut" placeholder="RUT del cliente">
+            <input type="text" id="new-nombre" placeholder="Nuevo nombre (para editar)">
+            <div class="flex-group">
+                <button class="btn-edit" onclick="actualizarCliente()">Editar</button>
+                <button class="btn-del" onclick="eliminarPorRut()">Borrar</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>⚠️ Borrado Masivo (Criterios)</h2>
+            <p style="font-size: 0.8rem; color: #636e72;">Se eliminarán todos los que coincidan.</p>
+            <input type="number" id="del-edad" placeholder="Por edad exacta">
+            <div class="flex-group">
+                <input type="number" id="del-min" placeholder="Rango Mín">
+                <input type="number" id="del-max" placeholder="Rango Máx">
+            </div>
+            <button class="btn-del" onclick="eliminarMasivo()">Ejecutar Borrado</button>
+        </div>
+
+        <div class="list-area card">
+            <h2>📋 Resultados</h2>
+            <div id="no-data" class="msg-info">No hay clientes que cumplan con el criterio.</div>
+            <table id="tabla-container">
+                <thead>
+                    <tr><th>RUT</th><th>Nombre</th><th>Edad</th></tr>
+                </thead>
+                <tbody id="tabla-clientes"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API = '/clientes';
+
+        // 1. RENDERIZAR TABLA
+        function renderizar(data) {
+            const tabla = document.getElementById('tabla-clientes');
+            const container = document.getElementById('tabla-container');
+            const noData = document.getElementById('no-data');
+
+            if (data.message || data.length === 0) {
+                container.style.display = 'none';
+                noData.style.display = 'block';
+                noData.innerText = data.message || "No hay clientes que cumplan con el criterio.";
+            } else {
+                container.style.display = 'table';
+                noData.style.display = 'none';
+                tabla.innerHTML = data.map(c => `
+                    <tr><td>${c.rut}</td><td>${c.nombre}</td><td>${c.edad}</td></tr>
+                `).join('');
+            }
+        }
+
+        async function obtenerTodos() {
+            const res = await fetch(API);
+            renderizar(await res.json());
+        }
+
+        async function buscarClientes() {
+            const params = new URLSearchParams();
+            if(document.getElementById('q-rut').value) params.append('rut', document.getElementById('q-rut').value);
+            if(document.getElementById('q-nombre').value) params.append('nombre', document.getElementById('q-nombre').value);
+            if(document.getElementById('q-edad').value) params.append('edad', document.getElementById('q-edad').value);
+            if(document.getElementById('q-min').value) params.append('edadMin', document.getElementById('q-min').value);
+            if(document.getElementById('q-max').value) params.append('edadMax', document.getElementById('q-max').value);
+
+            const res = await fetch(`${API}?${params.toString()}`);
+            renderizar(await res.json());
+        }
+
+        // 2. CREAR
+        async function crearCliente() {
+            const rut = document.getElementById('add-rut').value;
+            const nombre = document.getElementById('add-nombre').value;
+            const edad = document.getElementById('add-edad').value;
+
+            const res = await fetch(API, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ rut, nombre, edad })
+            });
+            const data = await res.json();
+            
+            if (res.ok) {
+                alert("Registrado con éxito");
+                // LIMPIEZA
+                document.getElementById('add-rut').value = "";
+                document.getElementById('add-nombre').value = "";
+                document.getElementById('add-edad').value = "";
+            } else {
+                alert("Error: " + data.error);
+            }
+            obtenerTodos();
+        }
+
+        // 3. ACTUALIZAR
+        async function actualizarCliente() {
+            const rut = document.getElementById('target-rut').value;
+            const nombre = document.getElementById('new-nombre').value;
+            
+            const res = await fetch(`${API}/${rut}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ nombre })
+            });
+
+            if(res.ok) {
+                alert("Nombre actualizado");
+                // LIMPIEZA
+                document.getElementById('target-rut').value = "";
+                document.getElementById('new-nombre').value = "";
+            }
+            obtenerTodos();
+        }
+
+        // 4. ELIMINAR POR RUT
+        async function eliminarPorRut() {
+            const rut = document.getElementById('target-rut').value;
+            if(!confirm("¿Borrar cliente?")) return;
+            
+            const res = await fetch(`${API}/${rut}`, { method: 'DELETE' });
+            if(res.ok) {
+                alert("Cliente eliminado");
+                // LIMPIEZA
+                document.getElementById('target-rut').value = "";
+            }
+            obtenerTodos();
+        }
+
+        // 5. ELIMINAR MASIVO
+        async function eliminarMasivo() {
+            const edad = document.getElementById('del-edad').value;
+            const min = document.getElementById('del-min').value;
+            const max = document.getElementById('del-max').value;
+            
+            let query = "";
+            if(edad) query = `?edad=${edad}`;
+            else if(min && max) query = `?edadMin=${min}&edadMax=${max}`;
+            
+            if(!query) return alert("Define un criterio de borrado");
+
+            const res = await fetch(`${API}_filtros${query}`, { method: 'DELETE' });
+            const data = await res.json();
+            
+            alert(data.message || data.error);
+            
+            // LIMPIEZA SIEMPRE
+            document.getElementById('del-edad').value = "";
+            document.getElementById('del-min').value = "";
+            document.getElementById('del-max').value = "";
+            
+            obtenerTodos();
+        }
+
+        obtenerTodos();
+    </script>
+</body>
+</html>
